@@ -260,10 +260,11 @@ static void delete_frame() {
     cur_frame = KF_UNDEF;
     return;
   }
-  if (cur_frame == 0) {
-    return;
+  else if (cur_frame != 0) {
+    --cur_frame;
   }
-  --cur_frame;
+  fillSgRbtNodes(g_world, *it);
+
   return;
 }
 
