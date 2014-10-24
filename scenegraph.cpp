@@ -41,24 +41,19 @@ public:
     , found_(false) {}
 
   const RigTForm getAccumulatedRbt(int offsetFromStackTop = 0) {
-    RigTForm base = RigTForm();
-    for (int i = 0; i < rbtStack_.size() - offsetFromStackTop; i++) {
-      base = base * rbtStack_[i];
-    }
-    return base;
+    if (!found_)
+      throw runtime_error("RbtAccumVisitor target never reached");
+    return rbtStack_[rbtStack_.size()-1-offsetFromStackTop];
   }
 
   virtual bool visit(SgTransformNode& node) {
-    /* rbtStack_.push_back(node.getRbt()); */
-
-    if (rbtStack_.empty()) {
+    if (rbtStack_.empty())
       rbtStack_.push_back(RigTForm());
-    }
-    else {
-      rbtStack_.push_back(node.getRbt());
-    }
+    else
+      rbtStack_.push_back(rbtStack_.back() * node.getRbt());
 
     if (target_ == node) {
+      found_ = true;
       return false;
     }
     return true;
@@ -75,7 +70,6 @@ RigTForm getPathAccumRbt(
   shared_ptr<SgTransformNode> destination,
   int offsetFromDestination) {
 
-  // Ensure source and destination aren't null ptrs
   assert(source);
   assert(destination);
 

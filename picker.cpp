@@ -24,23 +24,20 @@ bool Picker::postVisit(SgTransformNode& node) {
 
 bool Picker::visit(SgShapeNode& node) {
   idCounter_++;
-  shared_ptr<SgRbtNode> temp_node;
-
-  for (int i = nodeStack_.size() - 1; i >= 0; i--) {
-    temp_node = dynamic_pointer_cast<SgRbtNode>(nodeStack_[i]);
-    if (temp_node) {
+  for (int i = nodeStack_.size() - 1; i >= 0; --i) {
+    shared_ptr<SgRbtNode> asRbtNode = dynamic_pointer_cast<SgRbtNode>(nodeStack_[i]);
+    if (asRbtNode) {
+      addToMap(idCounter_, asRbtNode);
       break;
     }
   }
+  const Cvec3 idColor = idToColor(idCounter_);
 
-  // when done, temp is an SgRbtNode
-  addToMap(idCounter_, temp_node);
+  // DEBUG OUTPUT
+  cerr << idCounter_ << " => " << idColor[0] << ' ' << idColor[1] << ' ' << idColor[2] << endl;
 
-  GLint uid = drawer_.getCurSS().h_uIdColor;
-  safe_glUniform3f(uid, idToColor(idCounter_)[0], idToColor(idCounter_)[1], idToColor(idCounter_)[2]);
-
+  safe_glUniform3f(drawer_.getCurSS().h_uIdColor, idColor[0], idColor[1], idColor[2]);
   return drawer_.visit(node);
-
 }
 
 bool Picker::postVisit(SgShapeNode& node) {
@@ -48,10 +45,13 @@ bool Picker::postVisit(SgShapeNode& node) {
 }
 
 shared_ptr<SgRbtNode> Picker::getRbtNodeAtXY(int x, int y) {
-  PackedPixel pp;
-  glReadPixels(x,y,1,1, GL_RGB, GL_UNSIGNED_BYTE, (void*) &pp);
-  //cout << (unsigned int)pp.r << " " << (unsigned int)pp.g << " " << (unsigned int)pp.b << endl;
-  int id = colorToId(pp);
+  PackedPixel query;
+  glReadPixels(x, y, 1, 1, GL_RGB, GL_UNSIGNED_BYTE, &query);
+  const int id = colorToId(query);
+
+  // DEBUG OUTPUT
+  cerr << int(query.r) << ' ' << int(query.g) << ' ' << int(query.b) << " => " << id << endl;
+
   return find(id);
 }
 

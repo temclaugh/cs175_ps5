@@ -31,12 +31,12 @@
 #include "glsupport.h"
 #include "geometrymaker.h"
 #include "arcball.h"
-#include "asstcommon.h"
 #include "scenegraph.h"
+
+#include "asstcommon.h"
 #include "drawer.h"
 #include "picker.h"
 #include "sgutils.h"
-#include "sgfiller.h"
 
 using namespace std;
 using namespace tr1;
@@ -64,6 +64,7 @@ using namespace tr1;
   const bool g_Gl2Compatible = true;
 #endif
 
+
 static const float g_frustMinFov = 60.0;  // A minimal of 60 degree field of view
 static float g_frustFovY = g_frustMinFov; // FOV in y direction (updated by updateFrustFovY)
 
@@ -72,10 +73,7 @@ static const float g_frustFar = -50.0;    // far plane
 static const float g_groundY = -2.0;      // y coordinate of the ground
 static const float g_groundSize = 10.0;   // half the ground length
 
-enum ObjId {SKY=0, ROBOT1=1, ROBOT2=2, NULLOBJ=3};
 enum SkyMode {WORLD_SKY=0, SKY_SKY=1};
-
-static const char * const g_objNames[] = {"Sky", "Robot 1", "Robot 2"};
 
 static int g_windowWidth = 512;
 static int g_windowHeight = 512;
@@ -85,27 +83,27 @@ static bool g_spaceDown = false;         // space state, for middle mouse emulat
 static int g_mouseClickX, g_mouseClickY; // coordinates for mouse click event
 static int g_activeShader = 0;
 
-static ObjId g_activeObject = SKY;
-static ObjId g_activeEye = SKY;
 static SkyMode g_activeCameraFrame = WORLD_SKY;
 
-static bool g_picking = false;
 static bool g_displayArcball = true;
 static double g_arcballScreenRadius = 100; // number of pixels
 static double g_arcballScale = 1;
 
+static bool g_pickingMode = false;
 
-static const int PICKING_SHADER = 2; // index of the picking shader is g_shaerFiles
-static const int g_numShaders = 3; // 3 shaders instead of 2
+// -------- Shaders
+
+static const int g_numShaders = 3, g_numRegularShaders = 2;
+static const int PICKING_SHADER = 2;
 static const char * const g_shaderFiles[g_numShaders][2] = {
   {"./shaders/basic-gl3.vshader", "./shaders/diffuse-gl3.fshader"},
   {"./shaders/basic-gl3.vshader", "./shaders/solid-gl3.fshader"},
-  {"./shaders/basic-gl3.vshader", "./shaders/pick-gl3.fshader"},
+  {"./shaders/basic-gl3.vshader", "./shaders/pick-gl3.fshader"}
 };
 static const char * const g_shaderFilesGl2[g_numShaders][2] = {
   {"./shaders/basic-gl2.vshader", "./shaders/diffuse-gl2.fshader"},
   {"./shaders/basic-gl2.vshader", "./shaders/solid-gl2.fshader"},
-  {"./shaders/basic-gl2.vshader", "./shaders/pick-gl2.fshader"},
+  {"./shaders/basic-gl2.vshader", "./shaders/pick-gl2.fshader"}
 };
 static vector<shared_ptr<ShaderState> > g_shaderStates; // our global shader states
 
@@ -192,12 +190,14 @@ typedef SgGeometryShapeNode<Geometry> MyShapeNode;
 static shared_ptr<Geometry> g_ground, g_cube, g_sphere;
 
 // --------- Scene
-static shared_ptr<SgRootNode> g_world;
-static shared_ptr<SgRbtNode> g_skyNode, g_groundNode, g_robot1Node, g_robot2Node;
-static shared_ptr<SgRbtNode> g_currentPickedRbtNode; // used later when you do picking
 
 static const Cvec3 g_light1(2.0, 3.0, 14.0), g_light2(-2, -3.0, -5.0);  // define two lights positions in world space
-static Cvec3f g_objectColors[2] = {Cvec3f(1, 0, 0), Cvec3f(0, 0, 1)};
+
+static shared_ptr<SgRootNode> g_world;
+static shared_ptr<SgRbtNode> g_skyNode, g_groundNode, g_robot1Node, g_robot2Node;
+
+static shared_ptr<SgRbtNode> g_currentCameraNode;
+static shared_ptr<SgRbtNode> g_currentPickedRbtNode;
 
 ///////////////// END OF G L O B A L S //////////////////////////////////////////////////
 
@@ -259,7 +259,7 @@ static void initGround() {
     VertexPN(-g_groundSize, g_groundY, -g_groundSize, 0, 1, 0),
     VertexPN(-g_groundSize, g_groundY,  g_groundSize, 0, 1, 0),
     VertexPN( g_groundSize, g_groundY,  g_groundSize, 0, 1, 0),
-    VertexPN( g_groundSize, g_groundY, -g_groundSize, 0, 1, 0),
+    VertexPN( g_groundSize, g_groundY, -g_groundSize, 0, 1, 0)
   };
   unsigned short idx[] = {0, 1, 2, 0, 2, 3};
   g_ground.reset(new Geometry(&vtx[0], &idx[0], 4, 6));
@@ -289,37 +289,15 @@ static void initSphere() {
   g_sphere.reset(new Geometry(&vtx[0], &idx[0], vtx.size(), idx.size()));
 }
 
+static void initRobots() {
+  // Init whatever geometry needed for the robots
+}
+
 // takes a projection matrix and send to the the shaders
-static void sendProjectionMatrix(const ShaderState& curSS, const Matrix4& projMatrix) {
+inline void sendProjectionMatrix(const ShaderState& curSS, const Matrix4& projMatrix) {
   GLfloat glmatrix[16];
   projMatrix.writeToColumnMajorMatrix(glmatrix); // send projection matrix
   safe_glUniformMatrix4fv(curSS.h_uProjMatrix, glmatrix);
-}
-
-static RigTForm getRbtFromObjId(ObjId objId) {
-  if (objId == SKY) {
-    return getPathAccumRbt(g_world, g_skyNode);
-  }
-  else if (objId == ROBOT1) {
-    return getPathAccumRbt(g_world, g_robot1Node);
-  }
-  else if (objId == ROBOT2) {
-    return getPathAccumRbt(g_world, g_robot2Node);
-  }
-  return RigTForm();
-}
-
-static void setRbtFromObjId(ObjId objId, const RigTForm& rbt) {
-  if (objId == SKY) {
-    g_skyNode->setRbt(rbt);
-  }
-  else if (objId == ROBOT1) {
-    g_robot1Node->setRbt(rbt);
-  }
-  else if (objId == ROBOT2) {
-    g_robot2Node->setRbt(rbt);
-  }
-
 }
 
 // update g_frustFovY from g_frustMinFov, g_windowWidth, and g_windowHeight
@@ -345,10 +323,9 @@ enum ManipMode {
 };
 
 static ManipMode getManipMode() {
-  if (g_activeObject == g_activeEye ||
-     (g_activeEye == ROBOT1 && g_currentPickedRbtNode == g_robot1Node) ||
-     (g_activeEye == ROBOT2 && g_currentPickedRbtNode == g_robot2Node)) {
-    if (g_activeEye == SKY && g_activeCameraFrame == WORLD_SKY)
+  // if nothing is picked or the picked transform is the transfrom we are viewing from
+  if (g_currentPickedRbtNode == NULL || g_currentPickedRbtNode == g_currentCameraNode) {
+    if (g_currentCameraNode == g_skyNode && g_activeCameraFrame == WORLD_SKY)
       return ARCBALL_ON_SKY;
     else
       return EGO_MOTION;
@@ -358,7 +335,7 @@ static ManipMode getManipMode() {
 }
 
 static bool shouldUseArcball() {
-  return getManipMode() != EGO_MOTION && (g_activeEye == SKY || g_activeObject != SKY);
+  return getManipMode() != EGO_MOTION;
 }
 
 // The translation part of the aux frame either comes from the current
@@ -366,24 +343,18 @@ static bool shouldUseArcball() {
 static RigTForm getArcballRbt() {
   switch (getManipMode()) {
   case ARCBALL_ON_PICKED:
-    if (g_activeObject == SKY) {
-      return getRbtFromObjId(g_activeObject);
-    }
-    else if (g_activeObject == NULLOBJ) {
-      return getPathAccumRbt(g_world, g_currentPickedRbtNode);
-    }
-
+    return getPathAccumRbt(g_world, g_currentPickedRbtNode);
   case ARCBALL_ON_SKY:
     return RigTForm();
   case EGO_MOTION:
-    return getRbtFromObjId(g_activeEye);
+    return getPathAccumRbt(g_world, g_currentCameraNode);
   default:
     throw runtime_error("Invalid ManipMode");
   }
 }
 
 static void updateArcballScale() {
-  RigTForm arcballEye = inv(getRbtFromObjId(g_activeEye)) * getArcballRbt();
+  RigTForm arcballEye = inv(getPathAccumRbt(g_world, g_currentCameraNode)) * getArcballRbt();
   double depth = arcballEye.getTranslation()[2];
   if (depth > -CS175_EPS)
     g_arcballScale = 0.02;
@@ -395,12 +366,11 @@ static void drawArcBall(const ShaderState& curSS) {
   // switch to wire frame mode
   glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
-  RigTForm arcballEye = inv(getRbtFromObjId(g_activeEye)) * getArcballRbt();
-  Matrix4 MVM = rigTFormToMatrix(arcballEye) * Matrix4::makeScale(Cvec3(1,1,1)* g_arcballScale * g_arcballScreenRadius);
+  RigTForm arcballEye = inv(getPathAccumRbt(g_world, g_currentCameraNode)) * getArcballRbt();
+  Matrix4 MVM = rigTFormToMatrix(arcballEye) * Matrix4::makeScale(Cvec3(1, 1, 1) * g_arcballScale * g_arcballScreenRadius);
   sendModelViewNormalMatrix(curSS, MVM, normalMatrix(MVM));
 
   safe_glUniform3f(curSS.h_uColor, 0.27, 0.82, 0.35); // set color
-
   g_sphere->draw(curSS);
 
   // switch back to solid mode
@@ -416,7 +386,7 @@ static void drawStuff(const ShaderState& curSS, bool picking) {
   const Matrix4 projmat = makeProjectionMatrix();
   sendProjectionMatrix(curSS, projmat);
 
-  const RigTForm eyeRbt = getRbtFromObjId(g_activeEye);
+  const RigTForm eyeRbt = getPathAccumRbt(g_world, g_currentCameraNode);
   const RigTForm invEyeRbt = inv(eyeRbt);
 
   const Cvec3 eyeLight1 = Cvec3(invEyeRbt * Cvec4(g_light1, 1));
@@ -427,30 +397,31 @@ static void drawStuff(const ShaderState& curSS, bool picking) {
   if (!picking) {
     Drawer drawer(invEyeRbt, curSS);
     g_world->accept(drawer);
-    if (g_displayArcball && shouldUseArcball()) {
+
+    if (g_displayArcball && shouldUseArcball())
       drawArcBall(curSS);
-    }
-    glutSwapBuffers();
   }
   else {
     Picker picker(invEyeRbt, curSS);
     g_world->accept(picker);
     glFlush();
     g_currentPickedRbtNode = picker.getRbtNodeAtXY(g_mouseClickX, g_mouseClickY);
-
-    if (!g_currentPickedRbtNode) {
-      g_activeObject = SKY;
-    }
-    else if (g_currentPickedRbtNode == g_groundNode) {
-      g_activeObject = SKY;
-    }
-    else {
-      g_activeObject = NULLOBJ;
-    }
-
     if (g_currentPickedRbtNode == g_groundNode)
-      g_currentPickedRbtNode = shared_ptr<SgRbtNode>();   // set to NULL
+      g_currentPickedRbtNode = shared_ptr<SgRbtNode>(); // set to NULL
+
+    cout << (g_currentPickedRbtNode ? "Part picked" : "No part picked") << endl;
   }
+}
+
+static void display() {
+  glUseProgram(g_shaderStates[g_activeShader]->program);
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+  drawStuff(*g_shaderStates[g_activeShader], false);
+
+  glutSwapBuffers();
+
+  checkGlErrors();
 }
 
 static void pick() {
@@ -469,20 +440,11 @@ static void pick() {
 
   // Uncomment below and comment out the glutPostRedisplay in mouse(...) call back
   // to see result of the pick rendering pass
-  glutSwapBuffers();
+  // glutSwapBuffers();
 
   //Now set back the clear color
   glClearColor(clearColor[0], clearColor[1], clearColor[2], clearColor[3]);
 
-  checkGlErrors();
-}
-
-
-static void display() {
-  glUseProgram(g_shaderStates[g_activeShader]->program);
-  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);                   // clear framebuffer color&depth
-
-  drawStuff(*g_shaderStates[g_activeShader], false);
   checkGlErrors();
 }
 
@@ -491,11 +453,10 @@ static void reshape(const int w, const int h) {
   g_windowHeight = h;
   glViewport(0, 0, w, h);
   cerr << "Size of window is now " << w << "x" << h << endl;
-  g_arcballScreenRadius = max(1.0, min(h,w) * 0.25);
+  g_arcballScreenRadius = max(1.0, min(h, w) * 0.25);
   updateFrustFovY();
   glutPostRedisplay();
 }
-
 
 static Cvec3 getArcballDirection(const Cvec2& p, const double r) {
   double n2 = norm2(p);
@@ -505,10 +466,9 @@ static Cvec3 getArcballDirection(const Cvec2& p, const double r) {
     return normalize(Cvec3(p, sqrt(r*r - n2)));
 }
 
-
 static RigTForm moveArcball(const Cvec2& p0, const Cvec2& p1) {
   const Matrix4 projMatrix = makeProjectionMatrix();
-  const RigTForm eyeInverse = inv(getRbtFromObjId(g_activeEye));
+  const RigTForm eyeInverse = inv(getPathAccumRbt(g_world, g_currentCameraNode));
   const Cvec3 arcballCenter = getArcballRbt().getTranslation();
   const Cvec3 arcballCenter_ec = Cvec3(eyeInverse * Cvec4(arcballCenter, 1));
 
@@ -564,60 +524,44 @@ static RigTForm makeMixedFrame(const RigTForm& objRbt, const RigTForm& eyeRbt) {
   return transFact(objRbt) * linFact(eyeRbt);
 }
 
+// l = w X Y Z
+// o = l O
+// a = w A = l (Z Y X)^1 A = l A'
+// o = a (A')^-1 O
+//   => a M (A')^-1 O = l A' M (A')^-1 O
+
 static void motion(const int x, const int y) {
   if (!g_mouseClickDown)
     return;
-  if (g_activeObject == SKY && g_activeEye != SKY)
-    return;                  // we do not edit the eye when viewed from the objects
 
   const double dx = x - g_mouseClickX;
   const double dy = g_windowHeight - y - 1 - g_mouseClickY;
 
   const RigTForm M = getMRbt(dx, dy);   // the "action" matrix
 
-  if (g_activeObject == SKY) {
-
-    // the matrix for the auxiliary frame (the w.r.t.)
-    const RigTForm A = makeMixedFrame(getArcballRbt(), getRbtFromObjId(g_activeEye));
-
-    RigTForm O = doMtoOwrtA(M, getRbtFromObjId(g_activeObject), A);
-
-    setRbtFromObjId(g_activeObject, O);
-
-  }
-  else if(g_activeObject == NULLOBJ) {
-
-    shared_ptr<SgRbtNode> eyeNode;
-
-    if (g_activeEye == SKY) {
-      eyeNode = g_skyNode;
-    }
-    else if (g_activeEye == ROBOT1) {
-      eyeNode = g_robot1Node;
-    }
-    else if (g_activeEye == ROBOT2) {
-      eyeNode = g_robot2Node;
-    }
-
-    const RigTForm A = makeMixedFrame(getPathAccumRbt(g_world, g_currentPickedRbtNode),
-                                      getPathAccumRbt(g_world, eyeNode));
-
-    const RigTForm C_s = getPathAccumRbt(g_world, g_currentPickedRbtNode, 1);
-
-    const RigTForm A_s = inv(C_s) * A;
-
-    RigTForm O = doMtoOwrtA(M, g_currentPickedRbtNode->getRbt(), A_s);
-
-    g_currentPickedRbtNode->setRbt(O);
-  }
-
-
   // the matrix for the auxiliary frame (the w.r.t.)
+  RigTForm A = makeMixedFrame(getArcballRbt(), getPathAccumRbt(g_world, g_currentCameraNode));
 
+  shared_ptr<SgRbtNode> target;
+  switch (getManipMode()) {
+  case ARCBALL_ON_PICKED:
+    target = g_currentPickedRbtNode;
+    break;
+  case ARCBALL_ON_SKY:
+    target = g_skyNode;
+    break;
+  case EGO_MOTION:
+    target = g_currentCameraNode;
+    break;
+  }
+
+  A = inv(getPathAccumRbt(g_world, target, 1)) * A;
+
+  target->setRbt(doMtoOwrtA(M, target->getRbt(), A));
 
   g_mouseClickX += dx;
   g_mouseClickY += dy;
-  glutPostRedisplay();                    // we always redraw if we changed the scene
+  glutPostRedisplay();  // we always redraw if we changed the scene
 }
 
 static void mouse(const int button, const int state, const int x, const int y) {
@@ -632,17 +576,13 @@ static void mouse(const int button, const int state, const int x, const int y) {
   g_mouseRClickButton &= !(button == GLUT_RIGHT_BUTTON && state == GLUT_UP);
   g_mouseMClickButton &= !(button == GLUT_MIDDLE_BUTTON && state == GLUT_UP);
 
-
-
-  bool prevMouse = g_mouseClickDown;
   g_mouseClickDown = g_mouseLClickButton || g_mouseRClickButton || g_mouseMClickButton;
-  bool mouseClickUp = prevMouse && !g_mouseClickDown;
-  if (g_picking && mouseClickUp) {
-    g_picking = false;
-    cerr << "Picking mode is off" << endl;
-  }
-  if (g_picking && g_mouseClickDown) {
+
+  if (g_pickingMode && button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
     pick();
+    g_pickingMode = false;
+    cerr << "Picking mode is off" << endl;
+    glutPostRedisplay(); // request redisplay since the arcball will have moved
   }
   glutPostRedisplay();
 }
@@ -658,6 +598,9 @@ static void keyboardUp(const unsigned char key, const int x, const int y) {
 
 static void keyboard(const unsigned char key, const int x, const int y) {
   switch (key) {
+  case ' ':
+    g_spaceDown = true;
+    break;
   case 27:
     exit(0);                                  // ESC
   case 'h':
@@ -665,7 +608,7 @@ static void keyboard(const unsigned char key, const int x, const int y) {
     << "h\t\thelp menu\n"
     << "s\t\tsave screenshot\n"
     << "f\t\tToggle flat shading on/off.\n"
-    << "o\t\tCycle object to edit\n"
+    << "p\t\tUse mouse to pick a part to edit\n"
     << "v\t\tCycle view\n"
     << "drag left mouse to rotate\n" << endl;
     break;
@@ -674,32 +617,27 @@ static void keyboard(const unsigned char key, const int x, const int y) {
     writePpmScreenshot(g_windowWidth, g_windowHeight, "out.ppm");
     break;
   case 'f':
-    g_activeShader ^= 1;
+    g_activeShader = (g_activeShader + 1) % g_numRegularShaders;
     break;
   case 'v':
-    g_activeEye = ObjId((g_activeEye+1) % 3);
-    if (g_activeEye == ROBOT1) {
-      g_currentPickedRbtNode = g_robot1Node;
-      g_activeObject = NULLOBJ;
+  {
+    shared_ptr<SgRbtNode> viewers[] = {g_skyNode, g_robot1Node, g_robot2Node};
+    for (int i = 0; i < 3; ++i) {
+      if (g_currentCameraNode == viewers[i]) {
+        g_currentCameraNode = viewers[(i+1)%3];
+        break;
+      }
     }
-    else if (g_activeEye == ROBOT2) {
-      g_currentPickedRbtNode = g_robot2Node;
-      g_activeObject = NULLOBJ;
-    }
-    cerr << "Active eye is " << g_objNames[g_activeEye] << endl;
+  }
+  break;
+  case 'p':
+    g_pickingMode = !g_pickingMode;
+    cerr << "Picking mode is " << (g_pickingMode ? "on" : "off") << endl;
     break;
   case 'm':
     g_activeCameraFrame = SkyMode((g_activeCameraFrame+1) % 2);
     cerr << "Editing sky eye w.r.t. " << (g_activeCameraFrame == WORLD_SKY ? "world-sky frame\n" : "sky-sky frame\n") << endl;
     break;
-  case ' ':
-    g_spaceDown = true;
-    break;
-  case 'p':
-    glutPostRedisplay();
-    g_picking = !g_picking;
-    cerr << "Picking mode is " << ((g_picking) ? "on" : "off") << endl;
-    return;
   case 'c':
     cout << "clicked c" << endl;
     break;
@@ -740,7 +678,7 @@ static void initGlutState(int argc, char * argv[]) {
   glutInitDisplayMode(GLUT_RGBA|GLUT_DOUBLE|GLUT_DEPTH);  //  RGBA pixel channels and double buffering
 #endif
   glutInitWindowSize(g_windowWidth, g_windowHeight);      // create a window
-  glutCreateWindow("Assignment 3");                       // title the window
+  glutCreateWindow("Assignment 4");                       // title the window
 
   glutIgnoreKeyRepeat(true);                              // avoids repeated keyboard calls when holding space to emulate middle mouse
 
@@ -751,7 +689,6 @@ static void initGlutState(int argc, char * argv[]) {
   glutKeyboardFunc(keyboard);
   glutKeyboardUpFunc(keyboardUp);
 }
-
 
 static void initGLState() {
   glClearColor(128./255., 200./255., 255./255., 0.);
@@ -781,18 +718,18 @@ static void initGeometry() {
   initGround();
   initCubes();
   initSphere();
+  initRobots();
 }
 
 static void constructRobot(shared_ptr<SgTransformNode> base, const Cvec3& color) {
-
   const double ARM_LEN = 0.7,
                ARM_THICK = 0.25,
-               LEG_LEN = 0.9,
+               LEG_LEN = 1,
                LEG_THICK = 0.25,
                TORSO_LEN = 1.5,
                TORSO_THICK = 0.25,
                TORSO_WIDTH = 1,
-               HEAD_RADIUS = .3;
+               HEAD_SIZE = 0.7;
   const int NUM_JOINTS = 10,
             NUM_SHAPES = 10;
 
@@ -803,28 +740,15 @@ static void constructRobot(shared_ptr<SgTransformNode> base, const Cvec3& color)
 
   JointDesc jointDesc[NUM_JOINTS] = {
     {-1}, // torso
-    {0, TORSO_WIDTH/2, TORSO_LEN/2, 0}, // upper right arm
-    {1, ARM_LEN, 0, 0}, // lower right arm
+    {0,  TORSO_WIDTH/2, TORSO_LEN/2, 0}, // upper right arm
     {0, -TORSO_WIDTH/2, TORSO_LEN/2, 0}, // upper left arm
-    {3, -ARM_LEN, 0, 0}, // lower left arm
-    {0, TORSO_WIDTH/2 - LEG_THICK/2, -TORSO_LEN/2, 0}, // upper right leg
+    {1,  ARM_LEN, 0, 0}, // lower right arm
+    {2, -ARM_LEN, 0, 0}, // lower left arm
+    {0, TORSO_WIDTH/2-LEG_THICK/2, -TORSO_LEN/2, 0}, // upper right leg
+    {0, -TORSO_WIDTH/2+LEG_THICK/2, -TORSO_LEN/2, 0}, // upper left leg
     {5, 0, -LEG_LEN, 0}, // lower right leg
-    {0, -TORSO_WIDTH/2 + LEG_THICK/2, -TORSO_LEN/2, 0}, // upper left leg
-    {7, 0, -LEG_LEN, 0}, // lower left leg
-    {0, 0, TORSO_LEN/2, 0}, // head
-  };
-
-  char *names[] = {
-    "torso",
-    "upper right arm",
-    "lower right arm",
-    "upper left arm",
-    "lower left arm",
-    "upper right leg",
-    "lower right leg",
-    "upper left leg",
-    "lower left leg",
-    "head",
+    {6, 0, -LEG_LEN, 0}, // lower left
+    {0, 0, TORSO_LEN/2, 0} // head
   };
 
   struct ShapeDesc {
@@ -836,14 +760,14 @@ static void constructRobot(shared_ptr<SgTransformNode> base, const Cvec3& color)
   ShapeDesc shapeDesc[NUM_SHAPES] = {
     {0, 0,         0, 0, TORSO_WIDTH, TORSO_LEN, TORSO_THICK, g_cube}, // torso
     {1, ARM_LEN/2, 0, 0, ARM_LEN/2, ARM_THICK/2, ARM_THICK/2, g_sphere}, // upper right arm
-    {2, ARM_LEN/2, 0, 0, ARM_LEN, ARM_THICK, ARM_THICK, g_cube}, // lower right arm
-    {3, -ARM_LEN/2, 0, 0, ARM_LEN/2, ARM_THICK/2, ARM_THICK/2, g_sphere}, // upper left arm
+    {2, -ARM_LEN/2, 0, 0, ARM_LEN/2, ARM_THICK/2, ARM_THICK/2, g_sphere}, // upper left arm
+    {3, ARM_LEN/2, 0, 0, ARM_LEN, ARM_THICK, ARM_THICK, g_cube}, // lower right arm
     {4, -ARM_LEN/2, 0, 0, ARM_LEN, ARM_THICK, ARM_THICK, g_cube}, // lower left arm
     {5, 0, -LEG_LEN/2, 0, LEG_THICK/2, LEG_LEN/2, LEG_THICK/2, g_sphere}, // upper right leg
-    {6, 0, -LEG_LEN/2, 0, LEG_THICK, LEG_LEN, LEG_THICK, g_cube}, // lower right leg
-    {7, 0, -LEG_LEN/2, 0, LEG_THICK/2, LEG_LEN/2, LEG_THICK/2, g_sphere}, // upper left leg
+    {6, 0, -LEG_LEN/2, 0, LEG_THICK/2, LEG_LEN/2, LEG_THICK/2, g_sphere}, // upper left leg
+    {7, 0, -LEG_LEN/2, 0, LEG_THICK, LEG_LEN, LEG_THICK, g_cube}, // lower right leg
     {8, 0, -LEG_LEN/2, 0, LEG_THICK, LEG_LEN, LEG_THICK, g_cube}, // lower left leg
-    {9, 0, HEAD_RADIUS, 0, HEAD_RADIUS, HEAD_RADIUS, HEAD_RADIUS, g_sphere}, // head
+    {9, 0, HEAD_SIZE/2 * 1.5, 0, HEAD_SIZE/2, HEAD_SIZE/2, HEAD_SIZE/2, g_sphere}, // head
   };
 
   shared_ptr<SgTransformNode> jointNodes[NUM_JOINTS];
@@ -886,6 +810,8 @@ static void initScene() {
   g_world->addChild(g_groundNode);
   g_world->addChild(g_robot1Node);
   g_world->addChild(g_robot2Node);
+
+  g_currentCameraNode = g_skyNode;
 }
 
 int main(int argc, char * argv[]) {
