@@ -40,6 +40,8 @@
 using namespace std;
 using namespace tr1;
 
+#define KF_UNDEF -1
+
 // G L O B A L S ///////////////////////////////////////////////////
 
 // --------- IMPORTANT --------------------------------------------------------
@@ -108,6 +110,7 @@ static vector<shared_ptr<ShaderState> > g_shaderStates; // our global shader sta
 
 // linked list of frame vectors
 static list<vector<shared_ptr<SgRbtNode> > > key_frames;
+static int cur_frame = -1;
 
 // --------- Geometry
 
@@ -197,11 +200,40 @@ static Cvec3f g_objectColors[2] = {Cvec3f(1, 0, 0), Cvec3f(0, 0, 1)};
 
 ///////////////// END OF G L O B A L S //////////////////////////////////////////////////
 
-
-static void make_snapshot() {
+static void make_frame() {
   static vector<shared_ptr<SgRbtNode> > new_frame;
   dumpSgRbtNodes(g_world, new_frame);
-  key_frames.push_back(new_frame);
+  if (cur_frame == KF_UNDEF || cur_frame == key_frames.size() - 1) {
+    // undef is -1, so adding one sets the position to 0
+    key_frames.push_back(new_frame);
+    ++cur_frame;
+  }
+  else {
+    list<vector<shared_ptr<SgRbtNode> > >::iterator it = key_frames.begin();
+    advance(it, cur_frame);
+    key_frames.insert(it, new_frame);
+    ++cur_frame;
+  }
+  return;
+}
+
+static void next_frame() {
+  /* if (cur_frame == KF_UNDEF || cur_frame == key_frames.size() - 1) { */
+  /*   cout << "can't advance frame" << endl; */
+  /*   return; */
+  /* } */
+  /* ++cur_frame; */
+  /* list<vector<shared_ptr<SgRbtNode> > >::iterator it = key_frames.begin(); */
+  /* advance(it, cur_frame); */
+  /* g_world = (shared_ptr<SgRbtNode>)(*it).front(); */
+  return;
+}
+
+static void prev_frame() {
+  return;
+}
+
+static void delete_frame() {
   return;
 }
 
@@ -659,17 +691,20 @@ static void keyboard(const unsigned char key, const int x, const int y) {
     cout << "clicked u" << endl;
     break;
   case '>':
+    next_frame();
     cout << "clicked >" << endl;
     break;
   case '<':
+    prev_frame();
     cout << "clicked <" << endl;
     break;
   case 'n':
     cout << "making snapshot of current scene graph" << endl;
-    make_snapshot();
+    make_frame();
     break;
   case 'd':
     cout << "clicked d" << endl;
+    delete_frame();
     break;
   case 'i':
     cout << "clicked i" << endl;
