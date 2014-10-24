@@ -268,6 +268,26 @@ static void delete_frame() {
   return;
 }
 
+static void write_frame() {
+  list<vector<RigTForm> >::iterator it = key_frames.begin();
+  FILE* output = fopen("output.csv", "w");
+  while (it != key_frames.end()) {
+    vector<RigTForm> frame = *it;
+    fprintf(output, "frame\n");
+    for (int i = 0; i < frame.size(); ++i) {
+      RigTForm r = frame[i];
+      Cvec3 transFact = r.getTranslation();
+      Quat linFact = r.getRotation();
+      fprintf(output, "%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f\n",
+          transFact[0], transFact[1], transFact[2],
+          linFact[0], linFact[1], linFact[2], linFact[3]
+      );
+    }
+    ++it;
+  }
+  fclose(output);
+}
+
 static void initGround() {
   // A x-z plane at y = g_groundY of dimension [-g_groundSize, g_groundSize]^2
   VertexPN vtx[4] = {
@@ -680,6 +700,7 @@ static void keyboard(const unsigned char key, const int x, const int y) {
     break;
   case 'w':
     cout << "clicked w" << endl;
+    write_frame();
     break;
   }
   glutPostRedisplay();
