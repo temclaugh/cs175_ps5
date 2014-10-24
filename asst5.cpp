@@ -250,6 +250,20 @@ static void prev_frame() {
 }
 
 static void delete_frame() {
+  if (cur_frame == KF_UNDEF) {
+    return;
+  }
+  list<vector<RigTForm> >::iterator it = key_frames.begin();
+  advance(it, cur_frame);
+  key_frames.erase(it);
+  if (key_frames.empty()) {
+    cur_frame = KF_UNDEF;
+    return;
+  }
+  if (cur_frame == 0) {
+    return;
+  }
+  --cur_frame;
   return;
 }
 
