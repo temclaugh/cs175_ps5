@@ -27,5 +27,39 @@ inline void dumpSgRbtNodes(std::tr1::shared_ptr<SgNode> root, std::vector<std::t
   root->accept(scanner);
 }
 
+struct RbtNodesFiller : public SgNodeVisitor {
+  typedef std::vector<RigTForm > rbt_list;
+
+  rbt_list& rbts_;
+  int depth_;
+  RbtNodesFiller(rbt_list& rbts, int depth) : rbts_(rbts), depth_(depth) {}
+
+  virtual bool visit(SgTransformNode& node) {
+    using namespace std;
+    using namespace tr1;
+    shared_ptr<SgRbtNode> rbtPtr = dynamic_pointer_cast<SgRbtNode>(node.shared_from_this());
+    if (rbtPtr) {
+      rbtPtr->setRbt(rbts_[depth_++]);
+      cout << "!!! " << rbts_.size() << endl;
+      cout << "??? " << depth_ << endl;
+    }
+    return true;
+  }
+
+  /* virtual bool postVisit(SgTransformNode& node) { */
+  /*   using namespace std; */
+  /*   using namespace tr1; */
+  /*   shared_ptr<SgRbtNode> rbtPtr = dynamic_pointer_cast<SgRbtNode>(node.shared_from_this()); */
+  /*   if (rbtPtr) { */
+  /*     rbts_.pop_back(); */
+  /*   } */
+  /*   return true; */
+  /* } */
+};
+
+inline void fillSgRbtNodes(std::tr1::shared_ptr<SgNode> root, std::vector<RigTForm >& rbts) {
+  RbtNodesFiller filler(rbts, 0);
+  root->accept(filler);
+}
 
 #endif

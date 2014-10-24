@@ -36,6 +36,7 @@
 #include "drawer.h"
 #include "picker.h"
 #include "sgutils.h"
+#include "sgfiller.h"
 
 using namespace std;
 using namespace tr1;
@@ -109,7 +110,7 @@ static const char * const g_shaderFilesGl2[g_numShaders][2] = {
 static vector<shared_ptr<ShaderState> > g_shaderStates; // our global shader states
 
 // linked list of frame vectors
-static list<vector<shared_ptr<SgRbtNode> > > key_frames;
+static list<vector<RigTForm> > key_frames;
 static int cur_frame = -1;
 
 // --------- Geometry
@@ -201,15 +202,21 @@ static Cvec3f g_objectColors[2] = {Cvec3f(1, 0, 0), Cvec3f(0, 0, 1)};
 ///////////////// END OF G L O B A L S //////////////////////////////////////////////////
 
 static void make_frame() {
-  static vector<shared_ptr<SgRbtNode> > new_frame;
-  dumpSgRbtNodes(g_world, new_frame);
+  static vector<shared_ptr<SgRbtNode> > graph_vector;
+  dumpSgRbtNodes(g_world, graph_vector);
+
+  vector<RigTForm> new_frame;
+  for (int i = 0; i < graph_vector.size(); ++i) {
+    new_frame.push_back(graph_vector[i]->getRbt());
+  }
+
   if (cur_frame == KF_UNDEF || cur_frame == key_frames.size() - 1) {
     // undef is -1, so adding one sets the position to 0
     key_frames.push_back(new_frame);
     ++cur_frame;
   }
   else {
-    list<vector<shared_ptr<SgRbtNode> > >::iterator it = key_frames.begin();
+    list<vector<RigTForm> >::iterator it = key_frames.begin();
     advance(it, cur_frame);
     key_frames.insert(it, new_frame);
     ++cur_frame;
@@ -218,18 +225,27 @@ static void make_frame() {
 }
 
 static void next_frame() {
-  /* if (cur_frame == KF_UNDEF || cur_frame == key_frames.size() - 1) { */
-  /*   cout << "can't advance frame" << endl; */
-  /*   return; */
-  /* } */
-  /* ++cur_frame; */
-  /* list<vector<shared_ptr<SgRbtNode> > >::iterator it = key_frames.begin(); */
-  /* advance(it, cur_frame); */
-  /* g_world = (shared_ptr<SgRbtNode>)(*it).front(); */
+  if (cur_frame == KF_UNDEF || cur_frame == key_frames.size() - 1) {
+    cout << "can't advance frame" << endl;
+    return;
+  }
+  ++cur_frame;
+  list<vector<RigTForm> >::iterator it = key_frames.begin();
+  advance(it, cur_frame);
+  // this linked list of arrays is getting the previous vectors stacked on top of each other
+  fillSgRbtNodes(g_world, *it);
   return;
 }
 
 static void prev_frame() {
+  if (cur_frame < 1) {
+    cout << "can't rewind frame "<< endl;
+    return;
+  }
+  --cur_frame;
+  list<vector<RigTForm> >::iterator it = key_frames.begin();
+  advance(it, cur_frame);
+  fillSgRbtNodes(g_world, *it);
   return;
 }
 

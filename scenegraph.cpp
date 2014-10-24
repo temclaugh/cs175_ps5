@@ -6,19 +6,6 @@
 using namespace std;
 using namespace std::tr1;
 
-void p_rbt(RigTForm t) {
-  cout << "-------" << endl;
-  for (int i = 0; i < 4; ++i) {
-    cout << " ";
-    for (int j = 0; j < 4; ++j) {
-      cout << " " << rigTFormToMatrix(t)(i, j);
-    }
-    cout << endl;
-  }
-  cout << "-------" << endl;
-  cout << endl;
-}
-
 bool SgTransformNode::accept(SgNodeVisitor& visitor) {
   if (!visitor.visit(*this))
     return false;
