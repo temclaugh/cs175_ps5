@@ -202,7 +202,7 @@ static shared_ptr<SgRbtNode> g_currentPickedRbtNode;
 ///////////////// END OF G L O B A L S //////////////////////////////////////////////////
 
 static void make_frame() {
-  static vector<shared_ptr<SgRbtNode> > graph_vector;
+  vector<shared_ptr<SgRbtNode> > graph_vector;
   dumpSgRbtNodes(g_world, graph_vector);
 
   vector<RigTForm> new_frame;

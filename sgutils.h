@@ -45,16 +45,6 @@ struct RbtNodesFiller : public SgNodeVisitor {
     }
     return true;
   }
-
-  /* virtual bool postVisit(SgTransformNode& node) { */
-  /*   using namespace std; */
-  /*   using namespace tr1; */
-  /*   shared_ptr<SgRbtNode> rbtPtr = dynamic_pointer_cast<SgRbtNode>(node.shared_from_this()); */
-  /*   if (rbtPtr) { */
-  /*     rbts_.pop_back(); */
-  /*   } */
-  /*   return true; */
-  /* } */
 };
 
 inline void fillSgRbtNodes(std::tr1::shared_ptr<SgNode> root, std::vector<RigTForm >& rbts) {
