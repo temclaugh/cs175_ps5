@@ -303,12 +303,10 @@ static void read_frame() {
     for (int j = 0; j < 22; ++j) {
       Cvec3 transFact;
       Quat linFact;
-      cout << j << ": " << endl;
       fscanf(input, "%lf,%lf,%lf,%lf,%lf,%lf,%lf\n",
           &transFact[0], &transFact[1], &transFact[2],
           &linFact[0], &linFact[1], &linFact[2], &linFact[3]
       );
-      printf(">>> %.3f %.3f %.3f, %.3f %.3f %.3f %f\n", transFact[0], transFact[1], transFact[2], linFact[0], linFact[1], linFact[2], linFact[3]);
       RigTForm r = RigTForm(transFact, linFact);
       frame.push_back(r);
     }
