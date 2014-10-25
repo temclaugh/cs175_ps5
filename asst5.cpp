@@ -271,9 +271,9 @@ static void delete_frame() {
 static void write_frame() {
   list<vector<RigTForm> >::iterator it = key_frames.begin();
   FILE* output = fopen("output.csv", "w");
+  fprintf(output, "%d\n", key_frames.size());
   while (it != key_frames.end()) {
     vector<RigTForm> frame = *it;
-    fprintf(output, "frame\n");
     for (int i = 0; i < frame.size(); ++i) {
       RigTForm r = frame[i];
       Cvec3 transFact = r.getTranslation();
@@ -286,6 +286,38 @@ static void write_frame() {
     ++it;
   }
   fclose(output);
+}
+
+static void read_frame() {
+  FILE* input = fopen("output.csv", "r");
+  if (input == NULL) {
+    return;
+  }
+
+  int nFrames;
+  fscanf(input, "%d\n", &nFrames);
+  key_frames.clear();
+
+  for (int i = 0; i < nFrames; ++i) {
+    vector<RigTForm> frame;
+    for (int j = 0; j < 22; ++j) {
+      Cvec3 transFact;
+      Quat linFact;
+      cout << j << ": " << endl;
+      fscanf(input, "%lf,%lf,%lf,%lf,%lf,%lf,%lf\n",
+          &transFact[0], &transFact[1], &transFact[2],
+          &linFact[0], &linFact[1], &linFact[2], &linFact[3]
+      );
+      printf(">>> %.3f %.3f %.3f, %.3f %.3f %.3f %f\n", transFact[0], transFact[1], transFact[2], linFact[0], linFact[1], linFact[2], linFact[3]);
+      RigTForm r = RigTForm(transFact, linFact);
+      frame.push_back(r);
+    }
+    key_frames.push_back(frame);
+  }
+  cur_frame = 0;
+  fillSgRbtNodes(g_world, key_frames.front());
+  fclose(input);
+
 }
 
 static void initGround() {
@@ -697,6 +729,7 @@ static void keyboard(const unsigned char key, const int x, const int y) {
     break;
   case 'i':
     cout << "clicked i" << endl;
+    read_frame();
     break;
   case 'w':
     cout << "clicked w" << endl;
