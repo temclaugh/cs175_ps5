@@ -6,8 +6,10 @@
 //
 ////////////////////////////////////////////////////////////////////////
 
+#include <stdio.h>
 #include <cstddef>
 #include <vector>
+#include <math.h>
 #include <string>
 #include <memory>
 #include <stdexcept>
@@ -373,6 +375,39 @@ static void updateFrustFovY() {
     const double RAD_PER_DEG = 0.5 * CS175_PI/180;
     g_frustFovY = atan2(sin(g_frustMinFov * RAD_PER_DEG) * g_windowHeight / g_windowWidth, cos(g_frustMinFov * RAD_PER_DEG)) / RAD_PER_DEG;
   }
+}
+
+static Cvec3 lerp(Cvec3 src, Cvec3 dest, float alpha) {
+  assert(0 <= alpha && alpha <= 1);
+  float xout = ((1-alpha) * src[0]) + (alpha * dest[0]);
+  float yout = ((1-alpha) * src[1]) + (alpha * dest[1]);
+  float zout = ((1-alpha) * src[2]) + (alpha * dest[2]);
+  return Cvec3(xout, yout, zout);
+}
+
+static Quat cond_neg(Quat q) {
+  if (q[0] < 0) {
+    return Quat(-q[0], -q[1], -q[2], -q[3]);
+  }
+  return q;
+}
+
+static Quat qpow(Quat q, float alpha) {
+  Cvec3 axis = Cvec3(q[1], q[2], q[3]);
+
+  float theta = acos(q[0]);
+
+  float q_outw = cos(alpha * theta);
+  float q_outx = q[1] * sin(alpha * theta);
+  float q_outy = q[2] * sin(alpha * theta);
+  float q_outz = q[3] * sin(alpha * theta);
+
+  return normalize(Quat(q_outw, q_outx, q_outy, q_outz));
+}
+
+static Quat slerp(Quat src, Quat dest, float alpha) {
+  assert(0 <= alpha && alpha <= 1);
+  return qpow(cond_neg(src * inv(dest)), alpha) * src;
 }
 
 static Matrix4 makeProjectionMatrix() {
