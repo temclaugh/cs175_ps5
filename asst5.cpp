@@ -324,6 +324,53 @@ static void read_frame() {
 
 }
 
+static Quat slerp(Quat src, Quat dest, float alpha);
+static Cvec3 lerp(Cvec3 src, Cvec3 dest, float alpha);
+
+bool interpolateAndDisplay(float t) {
+  list<vector<RigTForm> >::iterator it = key_frames.begin();
+  advance(it, (int) t);
+  vector<RigTForm> frame_1 = *it;
+  ++it;
+  if (it == key_frames.end()) {
+    return true;
+  }
+  vector<RigTForm> frame_2 = *it;
+
+  float alpha = t - (int) t;
+  vector<RigTForm> frame;
+  for (int i = 0; i < 22; ++i) {
+    Cvec3 t_1 = frame_1[i].getTranslation();
+    Cvec3 t_2 = frame_2[i].getTranslation();
+    Quat r_1 = frame_1[i].getRotation();
+    Quat r_2 = frame_2[i].getRotation();
+
+    Cvec3 t_i = lerp(t_1, t_2, alpha);
+    Quat r_i = slerp(r_1, r_2, alpha);
+
+    frame.push_back(RigTForm(t_i, r_i));
+  }
+  fillSgRbtNodes(g_world, frame);
+  glutPostRedisplay();
+
+  printf("animating... time: %f, alpha: %f\n", t, alpha);
+  return false;
+}
+
+static void animateTimerCallback(int ms) {
+  float t = (float) ms / (float) g_msBetweenKeyFrames;
+
+  bool endReached = interpolateAndDisplay(t);
+  if (!endReached) {
+    glutTimerFunc(1000/g_animateFramesPerSecond,
+        animateTimerCallback,
+        ms + 1000/g_animateFramesPerSecond);
+  }
+  else {
+    animating = false;
+  }
+}
+
 static void initGround() {
   // A x-z plane at y = g_groundY of dimension [-g_groundSize, g_groundSize]^2
   VertexPN vtx[4] = {
@@ -773,9 +820,12 @@ static void keyboard(const unsigned char key, const int x, const int y) {
     write_frame();
     break;
   case 'y':
-    cout << "animation status:" << endl;
+    if (key_frames.size() < 4) {
+      cout << "Cannot play animation with fewer than 4 keyframes." << endl;
+      break;
+    }
     animating = !animating;
-    cout << animating << endl << endl;
+    animateTimerCallback(0);
     break;
   case '+':
     g_msBetweenKeyFrames -= 100;

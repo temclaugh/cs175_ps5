@@ -40,8 +40,6 @@ struct RbtNodesFiller : public SgNodeVisitor {
     shared_ptr<SgRbtNode> rbtPtr = dynamic_pointer_cast<SgRbtNode>(node.shared_from_this());
     if (rbtPtr) {
       rbtPtr->setRbt(rbts_[depth_++]);
-      cout << "!!! " << rbts_.size() << endl;
-      cout << "??? " << depth_ << endl;
     }
     return true;
   }
