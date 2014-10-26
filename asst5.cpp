@@ -201,6 +201,10 @@ static shared_ptr<SgRbtNode> g_skyNode, g_groundNode, g_robot1Node, g_robot2Node
 static shared_ptr<SgRbtNode> g_currentCameraNode;
 static shared_ptr<SgRbtNode> g_currentPickedRbtNode;
 
+static int g_msBetweenKeyFrames = 2000;
+static int g_animateFramesPerSecond = 60;
+static bool animating = false;
+
 ///////////////// END OF G L O B A L S //////////////////////////////////////////////////
 
 static void make_frame() {
@@ -767,6 +771,19 @@ static void keyboard(const unsigned char key, const int x, const int y) {
   case 'w':
     cout << "clicked w" << endl;
     write_frame();
+    break;
+  case 'y':
+    cout << "animation status:" << endl;
+    animating = !animating;
+    cout << animating << endl << endl;
+    break;
+  case '+':
+    g_msBetweenKeyFrames -= 100;
+    cout << g_msBetweenKeyFrames << " ms between keyframes." << endl;
+    break;
+  case '-':
+    g_msBetweenKeyFrames += 100;
+    cout << g_msBetweenKeyFrames << " ms between keyframes." << endl;
     break;
   }
   glutPostRedisplay();
