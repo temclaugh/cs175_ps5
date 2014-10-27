@@ -331,12 +331,15 @@ static Cvec3 lerp(Cvec3 src, Cvec3 dest, float alpha);
 bool interpolateAndDisplay(float t) {
   list<vector<RigTForm> >::iterator it = key_frames.begin();
   advance(it, (int) t);
+  ++it;
   vector<RigTForm> frame_1 = *it;
+  ++it;
+  vector<RigTForm> frame_2 = *it;
   ++it;
   if (it == key_frames.end()) {
     return true;
   }
-  vector<RigTForm> frame_2 = *it;
+
 
   float alpha = t - (int) t;
   vector<RigTForm> frame;
@@ -347,7 +350,7 @@ bool interpolateAndDisplay(float t) {
     Quat r_2 = frame_2[i].getRotation();
 
     Cvec3 t_i = lerp(t_1, t_2, alpha);
-    Quat r_i = slerp(r_1, r_2, 1 - alpha);
+    Quat r_i = slerp(r_1, r_2, alpha);
 
     frame.push_back(RigTForm(t_i, r_i));
   }
@@ -369,6 +372,8 @@ static void animateTimerCallback(int ms) {
   }
   else {
     animating = false;
+    cur_frame = key_frames.size() - 2;
+    glutPostRedisplay();
   }
 }
 
