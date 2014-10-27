@@ -462,7 +462,7 @@ static Quat qpow(Quat q, float alpha) {
 
   float theta = atan2(sqrt(norm2(axis)), q[0]);
 
-  theta *=1.100;
+  theta += .1;
 
   float q_outw = cos(alpha * theta);
   float q_outx = q[1] * sin(alpha * theta);
