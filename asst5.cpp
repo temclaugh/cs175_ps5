@@ -201,7 +201,7 @@ static shared_ptr<SgRbtNode> g_skyNode, g_groundNode, g_robot1Node, g_robot2Node
 static shared_ptr<SgRbtNode> g_currentCameraNode;
 static shared_ptr<SgRbtNode> g_currentPickedRbtNode;
 
-static int g_msBetweenKeyFrames = 1000;
+static int g_msBetweenKeyFrames = 2000;
 static int g_animateFramesPerSecond = 60;
 static bool animating = false;
 
@@ -332,6 +332,7 @@ bool interpolateAndDisplay(float t) {
   list<vector<RigTForm> >::iterator it = key_frames.begin();
   advance(it, (int) t);
 
+  ++it;
   vector<RigTForm> frame_1 = *it;
   ++it;
   vector<RigTForm> frame_2 = *it;
@@ -759,6 +760,9 @@ static void keyboardUp(const unsigned char key, const int x, const int y) {
 }
 
 static void keyboard(const unsigned char key, const int x, const int y) {
+  if (animating) {
+    return;
+  }
   switch (key) {
   case ' ':
     g_spaceDown = true;
