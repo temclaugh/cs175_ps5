@@ -328,16 +328,9 @@ static void read_frame() {
 static Quat slerp(Quat src, Quat dest, float alpha);
 static Cvec3 lerp(Cvec3 src, Cvec3 dest, float alpha);
 
-static int last_t = 0;
-
 bool interpolateAndDisplay(float t) {
   list<vector<RigTForm> >::iterator it = key_frames.begin();
   advance(it, (int) t);
-
-  if ((int) t > last_t) {
-    // cout << "\n\n\n\nADVANCED\n\n\n\n"<< t << endl;
-    last_t = int(t);
-  }
 
   vector<RigTForm> frame_1 = *it;
   ++it;
@@ -379,7 +372,6 @@ static void animateTimerCallback(int ms) {
   }
   else {
     animating = false;
-    last_t = 0;
     cur_frame = key_frames.size() - 2;
     glutPostRedisplay();
   }
@@ -466,7 +458,6 @@ static Quat qpow(Quat q, float alpha) {
     return Quat();
   }
   axis = normalize(axis);
-  //theta += .1;
 
   float q_outw = cos(alpha * theta);
   float q_outx = axis[0] * sin(alpha * theta);
