@@ -276,15 +276,15 @@ static void delete_frame() {
 
 static void write_frame() {
   list<vector<RigTForm> >::iterator it = key_frames.begin();
-  FILE* output = fopen("output.csv", "w");
-  fprintf(output, "%d\n", key_frames.size());
+  FILE* output = fopen("animation.txt", "w");
+  fprintf(output, "%d 22\n", key_frames.size());
   while (it != key_frames.end()) {
     vector<RigTForm> frame = *it;
     for (int i = 0; i < frame.size(); ++i) {
       RigTForm r = frame[i];
       Cvec3 transFact = r.getTranslation();
       Quat linFact = r.getRotation();
-      fprintf(output, "%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f\n",
+      fprintf(output, "%.3f %.3f %.3f %.3f %.3f %.3f %.3f\n",
           transFact[0], transFact[1], transFact[2],
           linFact[0], linFact[1], linFact[2], linFact[3]
       );
@@ -295,13 +295,14 @@ static void write_frame() {
 }
 
 static void read_frame() {
-  FILE* input = fopen("output.csv", "r");
+  FILE* input = fopen("animation.txt", "r");
   if (input == NULL) {
     return;
   }
 
   int nFrames;
-  fscanf(input, "%d\n", &nFrames);
+  int nRbts;
+  fscanf(input, "%d %d\n", &nFrames, &nRbts);
   key_frames.clear();
 
   for (int i = 0; i < nFrames; ++i) {
@@ -309,7 +310,7 @@ static void read_frame() {
     for (int j = 0; j < 22; ++j) {
       Cvec3 transFact;
       Quat linFact;
-      fscanf(input, "%lf,%lf,%lf,%lf,%lf,%lf,%lf\n",
+      fscanf(input, "%lf %lf %lf %lf %lf %lf %lf\n",
           &transFact[0], &transFact[1], &transFact[2],
           &linFact[0], &linFact[1], &linFact[2], &linFact[3]
       );
@@ -346,7 +347,7 @@ bool interpolateAndDisplay(float t) {
     Quat r_2 = frame_2[i].getRotation();
 
     Cvec3 t_i = lerp(t_1, t_2, alpha);
-    Quat r_i = slerp(r_1, r_2, alpha);
+    Quat r_i = slerp(r_1, r_2, 1 - alpha);
 
     frame.push_back(RigTForm(t_i, r_i));
   }
@@ -812,11 +813,11 @@ static void keyboard(const unsigned char key, const int x, const int y) {
     delete_frame();
     break;
   case 'i':
-    cout << "clicked i" << endl;
+    cout << "Reading animation from animation.txt" << endl;
     read_frame();
     break;
   case 'w':
-    cout << "clicked w" << endl;
+    cout << "Writing animation to animation.txt" << endl;
     write_frame();
     break;
   case 'y':
