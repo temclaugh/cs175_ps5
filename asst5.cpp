@@ -333,16 +333,22 @@ static int last_t = 0;
 bool interpolateAndDisplay(float t) {
   list<vector<RigTForm> >::iterator it = key_frames.begin();
   advance(it, (int) t);
+<<<<<<< HEAD
   if ((int) t > last_t) {
     // cout << "\n\n\n\nADVANCED\n\n\n\n"<< t << endl;
     last_t = int(t);
   }
+=======
+  ++it;
+>>>>>>> ad399715642e99ed744024b1a0e0962922949d7d
   vector<RigTForm> frame_1 = *it;
+  ++it;
+  vector<RigTForm> frame_2 = *it;
   ++it;
   if (it == key_frames.end()) {
     return true;
   }
-  vector<RigTForm> frame_2 = *it;
+
 
   float alpha = t - (int) t;
   vector<RigTForm> frame;
@@ -375,7 +381,12 @@ static void animateTimerCallback(int ms) {
   }
   else {
     animating = false;
+<<<<<<< HEAD
     last_t = 0;
+=======
+    cur_frame = key_frames.size() - 2;
+    glutPostRedisplay();
+>>>>>>> ad399715642e99ed744024b1a0e0962922949d7d
   }
 }
 
