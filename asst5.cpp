@@ -201,7 +201,7 @@ static shared_ptr<SgRbtNode> g_skyNode, g_groundNode, g_robot1Node, g_robot2Node
 static shared_ptr<SgRbtNode> g_currentCameraNode;
 static shared_ptr<SgRbtNode> g_currentPickedRbtNode;
 
-static int g_msBetweenKeyFrames = 500;
+static int g_msBetweenKeyFrames = 1000;
 static int g_animateFramesPerSecond = 60;
 static bool animating = false;
 
@@ -462,12 +462,16 @@ static Quat qpow(Quat q, float alpha) {
 
   float theta = atan2(sqrt(norm2(axis)), q[0]);
 
-  theta += .1;
+  if (norm2(axis) <= .001) {
+    return Quat();
+  }
+  axis = normalize(axis);
+  //theta += .1;
 
   float q_outw = cos(alpha * theta);
-  float q_outx = q[1] * sin(alpha * theta);
-  float q_outy = q[2] * sin(alpha * theta);
-  float q_outz = q[3] * sin(alpha * theta);
+  float q_outx = axis[0] * sin(alpha * theta);
+  float q_outy = axis[1] * sin(alpha * theta);
+  float q_outz = axis[2] * sin(alpha * theta);
 
   return normalize(Quat(q_outw, q_outx, q_outy, q_outz));
 }
