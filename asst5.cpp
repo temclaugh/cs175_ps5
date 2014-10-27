@@ -201,7 +201,7 @@ static shared_ptr<SgRbtNode> g_skyNode, g_groundNode, g_robot1Node, g_robot2Node
 static shared_ptr<SgRbtNode> g_currentCameraNode;
 static shared_ptr<SgRbtNode> g_currentPickedRbtNode;
 
-static int g_msBetweenKeyFrames = 2000;
+static int g_msBetweenKeyFrames = 500;
 static int g_animateFramesPerSecond = 60;
 static bool animating = false;
 
@@ -328,9 +328,15 @@ static void read_frame() {
 static Quat slerp(Quat src, Quat dest, float alpha);
 static Cvec3 lerp(Cvec3 src, Cvec3 dest, float alpha);
 
+static int last_t = 0;
+
 bool interpolateAndDisplay(float t) {
   list<vector<RigTForm> >::iterator it = key_frames.begin();
   advance(it, (int) t);
+  if ((int) t > last_t) {
+    // cout << "\n\n\n\nADVANCED\n\n\n\n"<< t << endl;
+    last_t = int(t);
+  }
   vector<RigTForm> frame_1 = *it;
   ++it;
   if (it == key_frames.end()) {
@@ -345,16 +351,16 @@ bool interpolateAndDisplay(float t) {
     Cvec3 t_2 = frame_2[i].getTranslation();
     Quat r_1 = frame_1[i].getRotation();
     Quat r_2 = frame_2[i].getRotation();
-
+    //cout << alpha << endl;
     Cvec3 t_i = lerp(t_1, t_2, alpha);
-    Quat r_i = slerp(r_1, r_2, 1 - alpha);
+    Quat r_i = slerp(r_1, r_2, alpha);
 
     frame.push_back(RigTForm(t_i, r_i));
   }
   fillSgRbtNodes(g_world, frame);
   glutPostRedisplay();
 
-  printf("animating... time: %f, alpha: %f\n", t, alpha);
+ // printf("animating... time: %f, alpha: %f\n", t, alpha);
   return false;
 }
 
@@ -369,6 +375,7 @@ static void animateTimerCallback(int ms) {
   }
   else {
     animating = false;
+    last_t = 0;
   }
 }
 
@@ -430,7 +437,7 @@ static void updateFrustFovY() {
 }
 
 static Cvec3 lerp(Cvec3 src, Cvec3 dest, float alpha) {
-  assert(0 <= alpha && alpha <= 1);
+  assert(0 <= alpha && alpha <= 1.0);
   float xout = ((1-alpha) * src[0]) + (alpha * dest[0]);
   float yout = ((1-alpha) * src[1]) + (alpha * dest[1]);
   float zout = ((1-alpha) * src[2]) + (alpha * dest[2]);
@@ -447,7 +454,9 @@ static Quat cond_neg(Quat q) {
 static Quat qpow(Quat q, float alpha) {
   Cvec3 axis = Cvec3(q[1], q[2], q[3]);
 
-  float theta = acos(q[0]);
+  float theta = atan2(sqrt(norm2(axis)), q[0]);
+
+  theta *=1.100;
 
   float q_outw = cos(alpha * theta);
   float q_outx = q[1] * sin(alpha * theta);
@@ -458,8 +467,8 @@ static Quat qpow(Quat q, float alpha) {
 }
 
 static Quat slerp(Quat src, Quat dest, float alpha) {
-  assert(0 <= alpha && alpha <= 1);
-  return qpow(cond_neg(src * inv(dest)), alpha) * src;
+  assert(0 <= alpha && alpha <= 1.0);
+  return normalize(qpow(cond_neg(dest * inv(src)), alpha) * src);
 }
 
 static Matrix4 makeProjectionMatrix() {
