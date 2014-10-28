@@ -349,7 +349,6 @@ bool interpolateAndDisplay(float t) {
     Cvec3 t_2 = frame_2[i].getTranslation();
     Quat r_1 = frame_1[i].getRotation();
     Quat r_2 = frame_2[i].getRotation();
-    //cout << alpha << endl;
     Cvec3 t_i = lerp(t_1, t_2, alpha);
     Quat r_i = slerp(r_1, r_2, alpha);
 
